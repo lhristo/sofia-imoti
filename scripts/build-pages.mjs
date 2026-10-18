@@ -1,0 +1,20 @@
+import {mkdir,writeFile,rm} from 'node:fs/promises';
+import worker from '../worker/index.js';
+const out=new URL('../docs/',import.meta.url);
+await rm(out,{recursive:true,force:true});await mkdir(new URL('data/listings/',out),{recursive:true});await mkdir(new URL('data/history/',out),{recursive:true});
+const run=path=>worker.fetch(new Request('https://build.local'+path));
+let html=await(await run('/')).text();
+const response=await run('/api/neighbourhoods'),data=await response.json();
+await writeFile(new URL('data/neighbourhoods.json',out),JSON.stringify(data));
+let completed=0,failed=0;
+const queue=[...data.rows];
+async function process(){while(queue.length){const row=queue.shift();const [listing,history]=await Promise.all([run('/api/listings?area='+encodeURIComponent(row.slug)),run('/api/history?area='+encodeURIComponent(row.slug))]);const offers=await listing.json();if(!listing.ok)failed++;await writeFile(new URL('data/listings/'+row.slug+'.json',out),JSON.stringify(offers));await writeFile(new URL('data/history/'+row.slug+'.json',out),await history.text());completed++;if(completed%24===0)console.log('Prepared '+completed+'/'+data.rows.length+' areas');}}
+await Promise.all(Array.from({length:4},process));
+const date=new Date().toLocaleString('bg-BG',{timeZone:'Europe/Sofia'});
+html=html.replace("fetch('/api/neighbourhoods')","fetch('./data/neighbourhoods.json')").replace("fetch('/api/listings?area='+encodeURIComponent(selected))","fetch('./data/listings/'+encodeURIComponent(selected)+'.json')").replace("fetch('/api/history?area='+encodeURIComponent(area))","fetch('./data/history/'+encodeURIComponent(area)+'.json')").replaceAll('href="/"','href="./"');
+html=html.replace("if(!r.ok)throw Error(data.error", "if(!r.ok||data.error)throw Error(data.error");
+html=html.replace('</header>','</header><div style="padding:12px 5%;background:#e7edde;color:#224e40;font-size:12px;line-height:1.7">Версия за GitHub Pages · Обявите са извлечени на '+date+' (София). Данните се обновяват при ново публикуване. Проверете актуалността в оригиналната обява.</div>');
+html=html.replace('↻ Обновете обявите','↻ Презаредете обявите').replace('↻ Обновете справката','↻ Презаредете справката');
+html=html.replace('Зареждат се при отваряне на квартала и се съхраняват временно до 10 минути.','В тази версия са извлечени при последното публикуване на сайта. Датата е посочена в началото на страницата.');
+await writeFile(new URL('index.html',out),html);await writeFile(new URL('.nojekyll',out),'');
+console.log('Pages build ready: '+completed+' areas, '+failed+' unavailable listing sources.');

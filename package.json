@@ -5,6 +5,7 @@
   "scripts": {
     "build": "bash scripts/build.sh",
     "validate": "node scripts/validate-artifact.mjs",
-    "dev": "node scripts/preview.mjs"
+    "dev": "node scripts/preview.mjs",
+    "build:pages": "node scripts/build-pages.mjs"
   }
 }
